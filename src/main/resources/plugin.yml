@@ -1,0 +1,4 @@
+name: MCFS
+version: '1.0-SNAPSHOT'
+main: xyz.mct32.mcfs.MCFS
+api-version: '1.21'
