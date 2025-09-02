@@ -7,6 +7,7 @@ import org.bukkit.block.Block
 import org.bukkit.plugin.java.JavaPlugin
 import xyz.mct32.mcfs.blockread.BlockReadErrorHandler
 import xyz.mct32.mcfs.blockread.FailureBlockReadErrorHandler
+import xyz.mct32.mcfs.command.createCommand
 import kotlin.UByteArray
 
 // TODO: Make all this block encoding/decoding into an interface to support different implementations
