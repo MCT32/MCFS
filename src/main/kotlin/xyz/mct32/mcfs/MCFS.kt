@@ -6,6 +6,7 @@ import org.bukkit.Material
 import org.bukkit.block.Block
 import org.bukkit.plugin.java.JavaPlugin
 import xyz.mct32.mcfs.blockread.BlockReadErrorHandler
+import xyz.mct32.mcfs.blockread.FailureBlockReadErrorHandler
 import kotlin.UByteArray
 
 // TODO: Make all this block encoding/decoding into an interface to support different implementations
@@ -126,9 +127,9 @@ fun stringToBlock(block: Block, string: String): Result<Unit> {
 }
 
 @OptIn(ExperimentalUnsignedTypes::class)
-fun writeDataToChunk(chunk: Chunk, yLevel: Int, data: UByteArray) {
+fun writeDataToChunk(chunk: Chunk, yLevel: Int, data: UByteArray, offset: UInt = 0u) {
     for (i in 0..<data.size) {
-        val iBlock = i shl 1
+        val iBlock = (i + offset.toInt()) shl 1
 
         val x = iBlock and 0xF
         val z = (iBlock and 0xF0) shr 4
@@ -138,6 +139,61 @@ fun writeDataToChunk(chunk: Chunk, yLevel: Int, data: UByteArray) {
 
         uByteToBlock(block, data[i])
     }
+}
+
+@OptIn(ExperimentalUnsignedTypes::class)
+fun readDataFromChunk(chunk: Chunk, yLevel: Int, size: UInt, offset: UInt = 0u, errorHandler: BlockReadErrorHandler = FailureBlockReadErrorHandler): UByteArray {
+    var buffer = UByteArray(0)
+
+    for (i in 0..<size.toInt()) {
+        val iBlock = (i + offset.toInt()) shl 1
+
+        val x = iBlock and 0xF
+        val z = (iBlock and 0xF0) shr 4
+        val y = (iBlock and 0xFF00) shr 8
+
+        val block = chunk.getBlock(x, y + yLevel, z)
+
+        buffer += blockToUByte(block, errorHandler).getOrThrow()
+    }
+
+    return buffer
+}
+
+@OptIn(ExperimentalUnsignedTypes::class)
+fun UInt.toUByteArray(): UByteArray {
+    return listOf<UByte>(
+        ((this and 0xFF000000u) shr 24).toUByte(),
+        ((this and 0xFF0000u) shr 16).toUByte(),
+        ((this and 0xFF00u) shr 8).toUByte(),
+        (this and 0xFFu).toUByte(),
+    ).toUByteArray()
+}
+
+@OptIn(ExperimentalUnsignedTypes::class)
+fun ULong.toUByteArray(): UByteArray {
+    return listOf<UByte>(
+        ((this and 0xFF00000000000000u) shr 56).toUByte(),
+        ((this and 0xFF000000000000u) shr 48).toUByte(),
+        ((this and 0xFF0000000000u) shr 40).toUByte(),
+        ((this and 0xFF00000000u) shr 32).toUByte(),
+        ((this and 0xFF000000u) shr 24).toUByte(),
+        ((this and 0xFF0000u) shr 16).toUByte(),
+        ((this and 0xFF00u) shr 8).toUByte(),
+        (this and 0xFFu).toUByte(),
+    ).toUByteArray()
+}
+
+@OptIn(ExperimentalUnsignedTypes::class)
+fun ULong.to48BitUByteArray(): UByteArray {
+    return listOf<UByte>(
+        ((this and 0xFF0000000000u) shr 40).toUByte(),
+        ((this and 0xFF00000000u) shr 32).toUByte(),
+        ((this and 0xFF000000u) shr 24).toUByte(),
+        ((this and 0xFF0000u) shr 16).toUByte(),
+        ((this and 0xFF00u) shr 8).toUByte(),
+        (this and 0xFFu).toUByte(),
+    ).toUByteArray()
 }
 
 class MCFS : JavaPlugin() {

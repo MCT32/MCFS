@@ -2,6 +2,7 @@ package xyz.mct32.mcfs
 
 import com.mojang.brigadier.Command
 import com.mojang.brigadier.arguments.IntegerArgumentType
+import com.mojang.brigadier.arguments.LongArgumentType
 import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.tree.LiteralCommandNode
 import io.papermc.paper.command.brigadier.CommandSourceStack
@@ -12,6 +13,7 @@ import org.bukkit.Material
 import xyz.mct32.mcfs.blockread.RandomBlockReadErrorHandler
 import xyz.mct32.mcfs.fs.ChunkAddressingFormat
 import xyz.mct32.mcfs.fs.FormatRegion2bpb
+import xyz.mct32.mcfs.fs.Volume
 
 @OptIn(ExperimentalUnsignedTypes::class)
 fun createCommand(): LiteralCommandNode<CommandSourceStack> {
@@ -178,32 +180,119 @@ fun createCommand(): LiteralCommandNode<CommandSourceStack> {
                 )
             )
         )
-        .then(Commands.literal("test")
-            .then(Commands.argument("pos", ArgumentTypes.blockPosition())
-                .executes {
-                    context ->
+        .then(Commands.literal("volume")
+            .then(Commands.literal("create")
+                .then(Commands.argument("pos", ArgumentTypes.blockPosition())
+                    .then(Commands.argument("cluster_count", LongArgumentType.longArg(1, 4294967294))
+                        .executes {
+                            context ->
 
-                    val blockPosSelector = context.getArgument<BlockPositionResolver>("pos", BlockPositionResolver::class.java)
-                    val blockPos = blockPosSelector.resolve(context.source)
-                    val chunk = context.source.location.world.getChunkAt(
-                        blockPos.x().toInt().floorDiv(16),
-                        blockPos.z().toInt().floorDiv(16)
+                            val blockPosSelector = context.getArgument<BlockPositionResolver>("pos", BlockPositionResolver::class.java)
+                            val blockPos = blockPosSelector.resolve(context.source)
+                            val chunk = context.source.location.world.getChunkAt(
+                                blockPos.x().toInt().floorDiv(16),
+                                blockPos.z().toInt().floorDiv(16)
+                            )
+
+                            val yLevelOffset = (blockPos.y().toInt() - chunk.world.minHeight).toUByte()
+
+                            val clusters = context.getArgument("cluster_count", Long::class.java).toUInt()
+
+                            val formatRegion = FormatRegion2bpb(
+                                chunkAddressingFormat = ChunkAddressingFormat.ZCURVE,
+                                chunkPosX = chunk.x,
+                                chunkPosZ = chunk.z,
+                                yLevel = yLevelOffset,
+                                clusterCount = clusters
+                            )
+
+                            Volume(formatRegion, context.source.location.world).toChunk(chunk, blockPos.y().toInt())
+
+                            Command.SINGLE_SUCCESS
+                        }
                     )
+                )
+            )
+            .then(Commands.literal("read")
+                .then(Commands.argument("pos", ArgumentTypes.blockPosition())
+                    .executes {
+                        context ->
 
-                    val yLevelOffset = (blockPos.y().toInt() - chunk.world.minHeight).toUByte()
-                    
-                    val formatRegion = FormatRegion2bpb(
-                        chunkAddressingFormat = ChunkAddressingFormat.ZCURVE,
-                        chunkPosX = chunk.x,
-                        chunkPosZ = chunk.z,
-                        yLevel = yLevelOffset,
-                        clusterCount = 1u
+                        val blockPosSelector = context.getArgument<BlockPositionResolver>("pos", BlockPositionResolver::class.java)
+                        val blockPos = blockPosSelector.resolve(context.source)
+                        val chunk = context.source.location.world.getChunkAt(
+                            blockPos.x().toInt().floorDiv(16),
+                            blockPos.z().toInt().floorDiv(16)
+                        )
+
+                        val volume = Volume.fromChunk(chunk, blockPos.y().toInt())
+                        println(volume.format)
+
+                        Command.SINGLE_SUCCESS
+                    }
+                )
+            )
+            .then(Commands.literal("get_fat")
+                .then(Commands.argument("pos", ArgumentTypes.blockPosition())
+                    .then(Commands.argument("index", LongArgumentType.longArg(0, 4294967294))
+                        .executes {
+                            context ->
+
+                            val blockPosSelector = context.getArgument<BlockPositionResolver>("pos", BlockPositionResolver::class.java)
+                            val blockPos = blockPosSelector.resolve(context.source)
+                            val chunk = context.source.location.world.getChunkAt(
+                                blockPos.x().toInt().floorDiv(16),
+                                blockPos.z().toInt().floorDiv(16)
+                            )
+
+                            val volume = Volume.fromChunk(chunk, blockPos.y().toInt())
+
+                            val index = context.getArgument("index", Long::class.java).toUInt()
+
+                            if (index >= volume.format.clusterCount) {
+                                context.source.sender.sendMessage("Index too large")
+                                return@executes Command.SINGLE_SUCCESS
+                            }
+
+                            val value = volume.getFatEntry(index)
+                            context.source.sender.sendMessage("${value.getOrThrow()}")
+
+                            Command.SINGLE_SUCCESS
+                        }
                     )
+                )
+            )
+            .then(Commands.literal("set_fat")
+                .then(Commands.argument("pos", ArgumentTypes.blockPosition())
+                    .then(Commands.argument("index", LongArgumentType.longArg(0, 4294967294))
+                        .then(Commands.argument("value", LongArgumentType.longArg(0, 4294967294))
+                            .executes {
+                                    context ->
 
-                    writeDataToChunk(chunk, blockPos.y().toInt(), formatRegion.toUByteArray())
+                                val blockPosSelector = context.getArgument<BlockPositionResolver>("pos", BlockPositionResolver::class.java)
+                                val blockPos = blockPosSelector.resolve(context.source)
+                                val chunk = context.source.location.world.getChunkAt(
+                                    blockPos.x().toInt().floorDiv(16),
+                                    blockPos.z().toInt().floorDiv(16)
+                                )
 
-                    Command.SINGLE_SUCCESS
-                }
+                                val volume = Volume.fromChunk(chunk, blockPos.y().toInt())
+
+                                val index = context.getArgument("index", Long::class.java).toUInt()
+                                val value = context.getArgument("value", Long::class.java).toUInt()
+
+                                if (index >= volume.format.clusterCount) {
+                                    context.source.sender.sendMessage("Index too large")
+                                    return@executes Command.SINGLE_SUCCESS
+                                }
+
+                                volume.setFatEntry(index, value)
+
+                                Command.SINGLE_SUCCESS
+                            }
+                        )
+                    )
+                )
             )
         )
         .build()
