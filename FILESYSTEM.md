@@ -18,9 +18,9 @@ Equivalent to FAT's boot sector, but with no code
 List of 32-bit entries of the size listed in the Format Region
 
 Entry values:
-- 0x00: empty cluster
-- 0x01-0xFE: Used cluster with next cluster address
-- 0xFF: End of chain cluster
+- 0x00000000: empty cluster
+- 0x00000001-0xFFFFFFFE: Used cluster with next cluster address
+- 0xFFFFFFFF: End of chain cluster
 
 ## Directory Table
 Root directory table is right after the FAT

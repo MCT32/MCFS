@@ -29,7 +29,7 @@ class Volume(val format: FormatRegion2bpb, val world: World) {
     }
 
     @OptIn(ExperimentalUnsignedTypes::class)
-    fun getFatEntry(index: UInt): Result<UInt> {
+    fun getFatEntry(index: UInt): UInt? {
         val chunk = chunkAtFatEntry(index)
 
         // 4 bytes per entry
@@ -38,7 +38,7 @@ class Volume(val format: FormatRegion2bpb, val world: World) {
         val array = readDataFromChunk(chunk, format.yLevel.toInt() + world.minHeight, 4u, offset,
             NullBlockReadErrorHandler)
 
-        return Result.success(uIntFromUByteArray(array))
+        return uIntFromUByteArray(array)
     }
 
     @OptIn(ExperimentalUnsignedTypes::class)
@@ -49,5 +49,61 @@ class Volume(val format: FormatRegion2bpb, val world: World) {
         val offset = index.rem(8192u) * 4u
 
         writeDataToChunk(chunk, format.yLevel.toInt() + world.minHeight, value.toUByteArray(), offset)
+    }
+
+    fun nextAvailableFatEntry(start: UInt = 0u): UInt? {
+        for (index in start..<this.format.clusterCount) {
+            if (this.getFatEntry(index.toUInt())!! == 0u) {
+                return index.toUInt()
+            }
+        }
+
+        return null
+    }
+
+    @OptIn(ExperimentalUnsignedTypes::class)
+    fun readFatChain(start: UInt): UIntArray {
+        var buffer = UIntArray(0)
+
+        var index = start
+
+        while (true) {
+            buffer += index
+
+            val newIndex = this.getFatEntry(index)!!
+
+            if (newIndex == 0xffffffffu) {
+                return buffer
+            }
+
+            if (buffer.contains(newIndex)) {
+                throw Exception("Loop detected in FAT chain")
+            }
+
+            index = newIndex
+        }
+    }
+
+    fun createFatChain(length: UInt, start: UInt = 0u): UInt {
+        var created = 0u;
+        var from = start;
+
+        var next = this.nextAvailableFatEntry(from)!!;
+        val actual_start = next;
+
+        while (created < length) {
+            if (created + 1u == length) {
+                this.setFatEntry(next, 0xFFFFFFFFu)
+            } else {
+                val current = next;
+                from = next;
+                this.setFatEntry(current, next);
+                next = this.nextAvailableFatEntry(from)!!;
+            }
+
+            created += 1u;
+        }
+
+        return actual_start;
     }
 }
