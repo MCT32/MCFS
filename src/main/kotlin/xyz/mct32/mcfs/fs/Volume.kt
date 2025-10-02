@@ -3,6 +3,7 @@ package xyz.mct32.mcfs.fs
 import org.bukkit.Chunk
 import org.bukkit.World
 import xyz.mct32.mcfs.blockread.NullBlockReadErrorHandler
+import xyz.mct32.mcfs.clearDataInChunk
 import xyz.mct32.mcfs.readDataFromChunk
 import xyz.mct32.mcfs.toUByteArray
 import xyz.mct32.mcfs.writeDataToChunk
@@ -51,6 +52,17 @@ class Volume(val format: FormatRegion2bpb, val world: World) {
         writeDataToChunk(chunk, format.yLevel.toInt() + world.minHeight, value.toUByteArray(), offset)
     }
 
+    @OptIn(ExperimentalUnsignedTypes::class)
+    // Replace with air, looks better
+    fun clearFatEntry(index: UInt) {
+        val chunk = chunkAtFatEntry(index)
+
+        // 4 bytes per entry
+        val offset = index.rem(8192u) * 4u
+
+        clearDataInChunk(chunk, format.yLevel.toInt() + world.minHeight, 4, offset)
+    }
+
     fun nextAvailableFatEntry(start: UInt = 0u): UInt? {
         for (index in start..<this.format.clusterCount) {
             if (this.getFatEntry(index.toUInt())!! == 0u) {
@@ -97,8 +109,8 @@ class Volume(val format: FormatRegion2bpb, val world: World) {
             } else {
                 val current = next;
                 from = next;
+                next = this.nextAvailableFatEntry(from + 1u)!!;
                 this.setFatEntry(current, next);
-                next = this.nextAvailableFatEntry(from)!!;
             }
 
             created += 1u;
@@ -106,4 +118,27 @@ class Volume(val format: FormatRegion2bpb, val world: World) {
 
         return actual_start;
     }
+
+    fun deleteFatChain(start: UInt): UInt {
+        var current = start;
+        var deleted = 0u;
+
+        while (true) {
+            val next = this.getFatEntry(current)!!;
+            println("current $current next $next");
+
+            this.clearFatEntry(current);
+            deleted++;
+
+            if (next == 0x0u) {
+                error("Found empty entry following chain");
+            } else if (next == 0xffffffffu) {
+                return deleted;
+            }
+
+            current = next;
+        }
+    }
+
+    // TODO: Handle shrink and grow
 }

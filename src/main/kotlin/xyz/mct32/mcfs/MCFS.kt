@@ -143,6 +143,24 @@ fun writeDataToChunk(chunk: Chunk, yLevel: Int, data: UByteArray, offset: UInt =
 }
 
 @OptIn(ExperimentalUnsignedTypes::class)
+fun clearDataInChunk(chunk: Chunk, yLevel: Int, length: Int, offset: UInt = 0u) {
+    for (i in 0..<length) {
+        val iBlock = (i + offset.toInt()) shl 1
+
+        val x = iBlock and 0xF
+        val z = (iBlock and 0xF0) shr 4
+        val y = (iBlock and 0xFF00) shr 8
+
+        var block = chunk.getBlock(x, y + yLevel, z)
+        block.setType(Material.AIR);
+
+        // Second block
+        block = chunk.getBlock(x + 1, y + yLevel, z)
+        block.setType(Material.AIR);
+    }
+}
+
+@OptIn(ExperimentalUnsignedTypes::class)
 fun readDataFromChunk(chunk: Chunk, yLevel: Int, size: UInt, offset: UInt = 0u, errorHandler: BlockReadErrorHandler = FailureBlockReadErrorHandler): UByteArray {
     var buffer = UByteArray(0)
 

@@ -149,4 +149,30 @@ fun fatCommand(): LiteralArgumentBuilder<CommandSourceStack> {
                 )
             )
         )
+        .then(Commands.literal("delete_chain")
+            .then(Commands.argument("pos", ArgumentTypes.blockPosition())
+                .then(Commands.argument("start", LongArgumentType.longArg(0, 4294967294))
+                    .executes {
+                            context ->
+
+                        val blockPosSelector = context.getArgument<BlockPositionResolver>("pos", BlockPositionResolver::class.java)
+                        val blockPos = blockPosSelector.resolve(context.source)
+                        val chunk = context.source.location.world.getChunkAt(
+                            blockPos.x().toInt().floorDiv(16),
+                            blockPos.z().toInt().floorDiv(16)
+                        )
+
+                        val volume = Volume.fromChunk(chunk, blockPos.y().toInt())
+
+                        val start = context.getArgument("start", Long::class.java).toUInt()
+
+                        val deleted = volume.deleteFatChain(start)
+
+                        context.source.sender.sendMessage("Deleted chain of length $deleted")
+
+                        Command.SINGLE_SUCCESS
+                    }
+                )
+            )
+        )
 }
