@@ -125,7 +125,7 @@ fun fatCommand(): LiteralArgumentBuilder<CommandSourceStack> {
         )
         .then(Commands.literal("create_chain")
             .then(Commands.argument("pos", ArgumentTypes.blockPosition())
-                .then(Commands.argument("length", LongArgumentType.longArg(0, 4294967294))
+                .then(Commands.argument("length", LongArgumentType.longArg(1, 4294967294))
                     .executes {
                             context ->
 
@@ -146,6 +146,35 @@ fun fatCommand(): LiteralArgumentBuilder<CommandSourceStack> {
 
                         Command.SINGLE_SUCCESS
                     }
+                )
+            )
+        )
+        .then(Commands.literal("extend_chain")
+            .then(Commands.argument("pos", ArgumentTypes.blockPosition())
+                .then(Commands.argument("start", LongArgumentType.longArg(0, 4294967294))
+                    .then(Commands.argument("length", LongArgumentType.longArg(1, 4294967294))
+                        .executes {
+                                context ->
+
+                            val blockPosSelector = context.getArgument<BlockPositionResolver>("pos", BlockPositionResolver::class.java)
+                            val blockPos = blockPosSelector.resolve(context.source)
+                            val chunk = context.source.location.world.getChunkAt(
+                                blockPos.x().toInt().floorDiv(16),
+                                blockPos.z().toInt().floorDiv(16)
+                            )
+
+                            val volume = Volume.fromChunk(chunk, blockPos.y().toInt())
+
+                            val length = context.getArgument("length", Long::class.java).toUInt();
+                            val start = context.getArgument("start", Long::class.java).toUInt();
+
+                            volume.extendFatChain(length, start);
+
+                            context.source.sender.sendMessage("Chain extended")
+
+                            Command.SINGLE_SUCCESS
+                        }
+                    )
                 )
             )
         )
@@ -172,6 +201,35 @@ fun fatCommand(): LiteralArgumentBuilder<CommandSourceStack> {
 
                         Command.SINGLE_SUCCESS
                     }
+                )
+            )
+        )
+        .then(Commands.literal("shrink_chain")
+            .then(Commands.argument("pos", ArgumentTypes.blockPosition())
+                .then(Commands.argument("start", LongArgumentType.longArg(0, 4294967294))
+                    .then(Commands.argument("length", LongArgumentType.longArg(1, 4294967294))
+                        .executes {
+                                context ->
+
+                            val blockPosSelector = context.getArgument<BlockPositionResolver>("pos", BlockPositionResolver::class.java)
+                            val blockPos = blockPosSelector.resolve(context.source)
+                            val chunk = context.source.location.world.getChunkAt(
+                                blockPos.x().toInt().floorDiv(16),
+                                blockPos.z().toInt().floorDiv(16)
+                            )
+
+                            val volume = Volume.fromChunk(chunk, blockPos.y().toInt())
+
+                            val start = context.getArgument("start", Long::class.java).toUInt()
+                            val length = context.getArgument("length", Long::class.java).toUInt()
+
+                            volume.shrinkFatChain(start, length);
+
+                            context.source.sender.sendMessage("Shrunk chain")
+
+                            Command.SINGLE_SUCCESS
+                        }
+                    )
                 )
             )
         )

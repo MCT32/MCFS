@@ -88,6 +88,10 @@ class Volume(val format: FormatRegion2bpb, val world: World) {
                 return buffer
             }
 
+            if (newIndex == 0x0u) {
+                throw Exception("Empty entry in chain");
+            }
+
             if (buffer.contains(newIndex)) {
                 throw Exception("Loop detected in FAT chain")
             }
@@ -119,13 +123,21 @@ class Volume(val format: FormatRegion2bpb, val world: World) {
         return actual_start;
     }
 
+    @OptIn(ExperimentalUnsignedTypes::class)
+    fun extendFatChain(length: UInt, start: UInt) {
+        val tail = this.readFatChain(start).last();
+
+        val newChain = this.createFatChain(length);
+
+        this.setFatEntry(tail, newChain);
+    }
+
     fun deleteFatChain(start: UInt): UInt {
         var current = start;
         var deleted = 0u;
 
         while (true) {
             val next = this.getFatEntry(current)!!;
-            println("current $current next $next");
 
             this.clearFatEntry(current);
             deleted++;
@@ -138,6 +150,21 @@ class Volume(val format: FormatRegion2bpb, val world: World) {
 
             current = next;
         }
+    }
+
+    @OptIn(ExperimentalUnsignedTypes::class)
+    fun shrinkFatChain(start: UInt, length: UInt) {
+        val chain = this.readFatChain(start);
+
+        if (length >= chain.size.toUInt()) {
+            throw Exception("Length too high");
+        }
+
+        for (i in (chain.size.toUInt() - length)..<chain.size.toUInt()) {
+            this.clearFatEntry(i);
+        }
+
+        this.setFatEntry(chain[chain.size - 1 - length.toInt()], 0xffffffffu);
     }
 
     // TODO: Handle shrink and grow
